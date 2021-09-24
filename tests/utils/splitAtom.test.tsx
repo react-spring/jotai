@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { ChangeEvent } from 'react'
 import { fireEvent, render, waitFor } from '@testing-library/react'
+import { unstable_batchedUpdates as batchedUpdates } from 'react-dom'
 import { atom, useAtom } from 'jotai'
 import type { Atom, PrimitiveAtom } from 'jotai'
 import { splitAtom } from '../../src/utils'
@@ -374,4 +375,53 @@ it('no error on wrong atom configs (fix 510)', async () => {
 
   expect(numbersEl.textContent).toBe('0')
   expect(console.warn).toHaveBeenCalledTimes(1)
+})
+
+it('removing original array item asynchronously (#728)', async () => {
+  const todosAtom = atom<TodoItem[]>([
+    { task: 'cat' },
+    { task: 'dog' },
+    { task: 'dragon' },
+  ])
+
+  const todoAtomsAtom = splitAtom(todosAtom)
+
+  const Component = () => {
+    const [todos, setTodos] = useAtom(todosAtom)
+    const [atoms] = useAtom(todoAtomsAtom)
+    if (atoms.length !== todos.length) {
+      throw new Error('splitted atoms length mismatch')
+    }
+    const removeFirst = () => setTodos(todos.slice(1))
+    return (
+      <>
+        <div>{todos.map((todo) => todo.task).join(',')}</div>
+        <button
+          onClick={() =>
+            setTimeout(() => {
+              // TODO remove batchedUpdates after React 18
+              batchedUpdates(() => {
+                removeFirst()
+              })
+            }, 1)
+          }>
+          button
+        </button>
+      </>
+    )
+  }
+
+  const { findByText, getByText } = render(
+    <Provider>
+      <Component />
+    </Provider>
+  )
+
+  await findByText('cat,dog,dragon')
+
+  fireEvent.click(getByText('button'))
+  await findByText('dog,dragon')
+
+  fireEvent.click(getByText('button'))
+  await findByText('dragon')
 })
