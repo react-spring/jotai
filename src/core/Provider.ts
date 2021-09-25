@@ -66,7 +66,7 @@ const stateToPrintable = ([store, atoms]: [Store, Atom<unknown>[]]) =>
         [
           atomToPrintable(atom),
           {
-            value: atomState.e || atomState.p || atomState.w || atomState.v,
+            value: atomState.e || atomState.p || atomState.v,
             dependents: Array.from(dependents).map(atomToPrintable),
           },
         ],

@@ -343,44 +343,6 @@ it('works with async get without setTimeout', async () => {
   await findByText('count: 2, delayedCount: 2')
 })
 
-it('shows loading with async set', async () => {
-  const countAtom = atom(0)
-  const asyncCountAtom = atom(
-    (get) => get(countAtom),
-    async (_get, set, value: number) => {
-      await new Promise((r) => setTimeout(r, 10))
-      set(countAtom, value)
-    }
-  )
-
-  const Counter = () => {
-    const [count, setCount] = useAtom(asyncCountAtom)
-    return (
-      <>
-        <div>
-          commits: {useCommitCount()}, count: {count}
-        </div>
-        <button onClick={() => setCount(count + 1)}>button</button>
-      </>
-    )
-  }
-
-  const { getByText, findByText } = render(
-    <Provider>
-      <Suspense fallback="loading">
-        <Counter />
-      </Suspense>
-    </Provider>
-  )
-
-  await findByText('commits: 1, count: 0')
-
-  fireEvent.click(getByText('button'))
-  await findByText('loading')
-
-  await findByText('commits: 2, count: 1')
-})
-
 it('uses atoms with tree dependencies', async () => {
   const topAtom = atom(0)
   const leftAtom = atom((get) => get(topAtom))
@@ -407,21 +369,17 @@ it('uses atoms with tree dependencies', async () => {
 
   const { getByText, findByText } = render(
     <Provider>
-      <Suspense fallback="loading">
-        <Counter />
-      </Suspense>
+      <Counter />
     </Provider>
   )
 
   await findByText('commits: 1, count: 0')
 
   fireEvent.click(getByText('button'))
-  await findByText('loading')
-  await findByText('commits: 2, count: 1')
+  await findByText('commits: 3, count: 1')
 
   fireEvent.click(getByText('button'))
-  await findByText('loading')
-  await findByText('commits: 3, count: 2')
+  await findByText('commits: 5, count: 2')
 })
 
 it('runs update only once in StrictMode', async () => {
@@ -486,17 +444,13 @@ it('uses an async write-only atom', async () => {
 
   const { getByText, findByText } = render(
     <Provider>
-      <Suspense fallback="loading">
-        <Counter />
-      </Suspense>
+      <Counter />
     </Provider>
   )
 
   await findByText('commits: 1, count: 0')
 
   fireEvent.click(getByText('button'))
-  await findByText('loading')
-
   await findByText('commits: 2, count: 1')
 })
 
@@ -521,16 +475,13 @@ it('uses a writable atom without read function', async () => {
 
   const { getByText, findByText } = render(
     <Provider>
-      <Suspense fallback="loading">
-        <Counter />
-      </Suspense>
+      <Counter />
     </Provider>
   )
 
   await findByText('count: 1')
 
   fireEvent.click(getByText('button'))
-  await findByText('loading')
   await findByText('count: 11')
 })
 

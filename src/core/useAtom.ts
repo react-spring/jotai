@@ -63,9 +63,6 @@ export function useAtom<Value, Update>(
     if (atomState.p) {
       throw atomState.p // read promise
     }
-    if (atomState.w) {
-      throw atomState.w // write promise
-    }
     if ('v' in atomState) {
       return atomState.v as Value
     }
