@@ -7,7 +7,7 @@ import {
 } from 'react'
 import type { Atom, Scope, SetAtom, WritableAtom } from './atom'
 import { getScopeContext } from './contexts'
-import { FLUSH_PENDING, READ_ATOM, SUBSCRIBE_ATOM, WRITE_ATOM } from './store'
+import { COMMIT_ATOM, READ_ATOM, SUBSCRIBE_ATOM, WRITE_ATOM } from './store'
 
 const isWritable = <Value, Update>(
   atom: Atom<Value> | WritableAtom<Value, Update>
@@ -81,7 +81,7 @@ export function useAtom<Value, Update>(
   }, [store, atom])
 
   useEffect(() => {
-    store[FLUSH_PENDING]()
+    store[COMMIT_ATOM](atom)
   })
 
   const setAtom = useCallback(
