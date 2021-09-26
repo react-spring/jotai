@@ -4,13 +4,19 @@ import { createMemoizeAtom } from './weakCache'
 
 const memoizeAtom = createMemoizeAtom()
 
+type ResolveType<T> = T extends Promise<infer V> ? V : T
+
 export function waitForAll<Values extends Record<string, unknown>>(atoms: {
   [K in keyof Values]: Atom<Values[K]>
-}): Atom<Values>
+}): Atom<{
+  [K in keyof Values]: ResolveType<Values[K]>
+}>
 
 export function waitForAll<Values extends readonly unknown[]>(atoms: {
   [K in keyof Values]: Atom<Values[K]>
-}): Atom<Values>
+}): Atom<{
+  [K in keyof Values]: ResolveType<Values[K]>
+}>
 
 export function waitForAll<
   Values extends Record<string, unknown> | readonly unknown[]

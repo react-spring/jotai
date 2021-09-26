@@ -6,25 +6,23 @@ import { useAtom } from 'jotai'
 import type { WritableAtom } from 'jotai'
 import type { Scope } from '../core/atom'
 
-export function useImmerAtom<Value>(
-  anAtom: WritableAtom<Value, (draft: Draft<Value>) => void>,
+export function useImmerAtom<Value, Result extends void | Promise<void>>(
+  anAtom: WritableAtom<Value, (draft: Draft<Value>) => void, Result>,
   scope?: Scope
-): [Value, (fn: (draft: Draft<Value>) => void) => void]
+): [Value, (fn: (draft: Draft<Value>) => void) => Result]
 
-export function useImmerAtom<Value>(
-  anAtom: WritableAtom<Value, (value: Value) => Value>,
+export function useImmerAtom<Value, Result extends void | Promise<void>>(
+  anAtom: WritableAtom<Value, (value: Value) => Value, Result>,
   scope?: Scope
-): [Value, (fn: (draft: Draft<Value>) => void) => void]
+): [Value, (fn: (draft: Draft<Value>) => void) => Result]
 
-export function useImmerAtom<Value>(
-  anAtom: WritableAtom<Value, (value: Value) => Value>,
+export function useImmerAtom<Value, Result extends void | Promise<void>>(
+  anAtom: WritableAtom<Value, (value: Value) => Value, Result>,
   scope?: Scope
 ) {
   const [state, setState] = useAtom(anAtom, scope)
   const setStateWithImmer = useCallback(
-    (fn) => {
-      setState(produce((draft) => fn(draft)) as (value: Value) => Value)
-    },
+    (fn) => setState(produce((draft) => fn(draft)) as (value: Value) => Value),
     [setState]
   )
   return [state, setStateWithImmer]

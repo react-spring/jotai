@@ -131,7 +131,7 @@ it('loadable can recover from error', async () => {
 })
 
 interface LoadableComponentProps {
-  asyncAtom: Atom<number | string>
+  asyncAtom: Atom<Promise<number> | Promise<string>>
 }
 
 const LoadableComponent = ({ asyncAtom }: LoadableComponentProps) => {

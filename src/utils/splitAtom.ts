@@ -11,10 +11,10 @@ import { createMemoizeAtom } from './weakCache'
 
 const memoizeAtom = createMemoizeAtom()
 
-const isWritable = <Value, Update>(
-  atom: Atom<Value> | WritableAtom<Value, Update>
-): atom is WritableAtom<Value, Update> =>
-  !!(atom as WritableAtom<Value, Update>).write
+const isWritable = <Value, Update, Result extends void | Promise<void>>(
+  atom: Atom<Value> | WritableAtom<Value, Update, Result>
+): atom is WritableAtom<Value, Update, Result> =>
+  !!(atom as WritableAtom<Value, Update, Result>).write
 
 const isFunction = <T>(x: T): x is T & Function => typeof x === 'function'
 

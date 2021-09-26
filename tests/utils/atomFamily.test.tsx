@@ -32,7 +32,7 @@ it('new atomFamily impl', async () => {
 })
 
 it('primitive atomFamily returns same reference for same parameters', async () => {
-  const myFamily = atomFamily<number, { num: number }>((num) => atom({ num }))
+  const myFamily = atomFamily((num: number) => atom({ num }))
   expect(myFamily(0)).toEqual(myFamily(0))
   expect(myFamily(0)).not.toEqual(myFamily(1))
   expect(myFamily(1)).not.toEqual(myFamily(0))
@@ -40,7 +40,7 @@ it('primitive atomFamily returns same reference for same parameters', async () =
 
 it('read-only derived atomFamily returns same reference for same parameters', async () => {
   const arrayAtom = atom([0])
-  const myFamily = atomFamily<number, number>((num) =>
+  const myFamily = atomFamily((num: number) =>
     atom((get) => get(arrayAtom)[num] as number)
   )
   expect(myFamily(0)).toEqual(myFamily(0))
@@ -50,7 +50,7 @@ it('read-only derived atomFamily returns same reference for same parameters', as
 
 it('removed atom creates a new reference', async () => {
   const bigAtom = atom([0])
-  const myFamily = atomFamily<number, number>((num) =>
+  const myFamily = atomFamily((num: number) =>
     atom((get) => get(bigAtom)[num] as number)
   )
 
@@ -114,7 +114,7 @@ it('primitive atomFamily initialized with props', async () => {
 it('derived atomFamily functionality as usual', async () => {
   const arrayAtom = atom([0, 0, 0])
 
-  const myFamily = atomFamily<number, number, SetStateAction<number>>((param) =>
+  const myFamily = atomFamily((param: number) =>
     atom(
       (get) => get(arrayAtom)[param] as number,
       (_, set, update) => {
@@ -207,12 +207,13 @@ it('derived atomFamily functionality as usual', async () => {
 it('custom equality function work', async () => {
   const bigAtom = atom([0])
 
-  const badFamily = atomFamily<{ index: number }, number>((num) =>
+  const badFamily = atomFamily((num: { index: number }) =>
     atom((get) => get(bigAtom)[num.index] as number)
   )
 
-  const goodFamily = atomFamily<{ index: number }, number>(
-    (num) => atom((get) => get(bigAtom)[num.index] as number),
+  const goodFamily = atomFamily(
+    (num: { index: number }) =>
+      atom((get) => get(bigAtom)[num.index] as number),
     (l, r) => l.index === r.index
   )
 

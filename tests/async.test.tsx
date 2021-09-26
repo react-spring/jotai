@@ -534,7 +534,7 @@ it('uses an async atom that depends on another async atom', async () => {
 
 it('a derived atom from a newly created async atom (#351)', async () => {
   const countAtom = atom(1)
-  const atomCache = new Map<number, Atom<number>>()
+  const atomCache = new Map<number, Atom<Promise<number>>>()
   const getAsyncAtom = (n: number) => {
     if (!atomCache.has(n)) {
       atomCache.set(
@@ -545,7 +545,7 @@ it('a derived atom from a newly created async atom (#351)', async () => {
         })
       )
     }
-    return atomCache.get(n) as Atom<number>
+    return atomCache.get(n) as Atom<Promise<number>>
   }
   const derivedAtom = atom((get) => get(getAsyncAtom(get(countAtom))))
 

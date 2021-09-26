@@ -37,7 +37,12 @@ export function atomWithQuery<
     AtomWithQueryOptionsWithEnabled<TQueryFnData, TError, TData, TQueryData>
   >,
   getQueryClient?: GetQueryClient
-): WritableAtom<TData | TQueryData | undefined, AtomWithQueryAction>
+): WritableAtom<
+  TData | TQueryData | undefined,
+  AtomWithQueryAction,
+  Promise<void>
+>
+
 export function atomWithQuery<
   TQueryFnData,
   TError,
@@ -48,7 +53,8 @@ export function atomWithQuery<
     AtomWithQueryOptions<TQueryFnData, TError, TData, TQueryData>
   >,
   getQueryClient?: GetQueryClient
-): WritableAtom<TData | TQueryData, AtomWithQueryAction>
+): WritableAtom<TData | TQueryData, AtomWithQueryAction, Promise<void>>
+
 export function atomWithQuery<
   TQueryFnData,
   TError,
@@ -59,7 +65,11 @@ export function atomWithQuery<
     AtomWithQueryOptions<TQueryFnData, TError, TData, TQueryData>
   >,
   getQueryClient: GetQueryClient = (get) => get(queryClientAtom)
-): WritableAtom<TData | TQueryData | undefined, AtomWithQueryAction> {
+): WritableAtom<
+  TData | TQueryData | undefined,
+  AtomWithQueryAction,
+  Promise<void>
+> {
   const queryDataAtom: WritableAtom<
     {
       dataAtom: PrimitiveAtom<
@@ -67,7 +77,8 @@ export function atomWithQuery<
       >
       observer: QueryObserver<TQueryFnData, TError, TData, TQueryData>
     },
-    AtomWithQueryAction
+    AtomWithQueryAction,
+    Promise<void>
   > = atom(
     (get) => {
       const queryClient = getQueryClient(get)
@@ -169,10 +180,16 @@ export function atomWithQuery<
             .then(() => {})
           return p
         }
+        default:
+          throw new Error('no action')
       }
     }
   )
-  const queryAtom = atom<TData | TQueryData | undefined, AtomWithQueryAction>(
+  const queryAtom = atom<
+    TData | TQueryData | undefined,
+    AtomWithQueryAction,
+    Promise<void>
+  >(
     (get) => {
       const { dataAtom } = get(queryDataAtom)
       return get(dataAtom)

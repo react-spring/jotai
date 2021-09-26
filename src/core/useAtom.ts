@@ -9,40 +9,25 @@ import type { Atom, Scope, SetAtom, WritableAtom } from './atom'
 import { getScopeContext } from './contexts'
 import { FLUSH_PENDING, READ_ATOM, SUBSCRIBE_ATOM, WRITE_ATOM } from './store'
 
-const isWritable = <Value, Update>(
-  atom: Atom<Value> | WritableAtom<Value, Update>
-): atom is WritableAtom<Value, Update> =>
-  !!(atom as WritableAtom<Value, Update>).write
+type ResolveType<T> = T extends Promise<infer V> ? V : T
 
-export function useAtom<Value, Update>(
-  atom: WritableAtom<Value | Promise<Value>, Update>,
-  scope?: Scope
-): [Value, SetAtom<Update>]
+const isWritable = <Value, Update, Result extends void | Promise<void>>(
+  atom: Atom<Value> | WritableAtom<Value, Update, Result>
+): atom is WritableAtom<Value, Update, Result> =>
+  !!(atom as WritableAtom<Value, Update, Result>).write
 
-export function useAtom<Value, Update>(
-  atom: WritableAtom<Promise<Value>, Update>,
+export function useAtom<Value, Update, Result extends void | Promise<void>>(
+  atom: WritableAtom<Value, Update, Result>,
   scope?: Scope
-): [Value, SetAtom<Update>]
-
-export function useAtom<Value, Update>(
-  atom: WritableAtom<Value, Update>,
-  scope?: Scope
-): [Value, SetAtom<Update>]
+): [ResolveType<Value>, SetAtom<Update, Result>]
 
 export function useAtom<Value>(
-  atom: Atom<Value | Promise<Value>>,
+  atom: Atom<Value>,
   scope?: Scope
-): [Value, never]
+): [ResolveType<Value>, never]
 
-export function useAtom<Value>(
-  atom: Atom<Promise<Value>>,
-  scope?: Scope
-): [Value, never]
-
-export function useAtom<Value>(atom: Atom<Value>, scope?: Scope): [Value, never]
-
-export function useAtom<Value, Update>(
-  atom: Atom<Value> | WritableAtom<Value, Update>,
+export function useAtom<Value, Update, Result extends void | Promise<void>>(
+  atom: Atom<Value> | WritableAtom<Value, Update, Result>,
   scope?: Scope
 ) {
   if ('scope' in atom) {
@@ -67,7 +52,7 @@ export function useAtom<Value, Update>(
       throw atomState.w // write promise
     }
     if ('v' in atomState) {
-      return atomState.v as Value
+      return atomState.v as ResolveType<Value>
     }
     throw new Error('no atom value')
   }, [store, atom])

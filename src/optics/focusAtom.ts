@@ -9,25 +9,42 @@ const isFunction = <T>(x: T): x is T & Function => typeof x === 'function'
 
 type NonFunction<T> = [T] extends [Function] ? never : T
 
-export function focusAtom<S, A>(
-  baseAtom: WritableAtom<S, NonFunction<S>>,
+export function focusAtom<S, A, R extends void | Promise<void>>(
+  baseAtom: WritableAtom<Promise<S>, NonFunction<S>, R>,
   callback: (optic: O.OpticFor<S>) => O.Prism<S, any, A>
-): WritableAtom<A | undefined, SetStateAction<A>>
+): WritableAtom<A | undefined, SetStateAction<A>, R>
 
-export function focusAtom<S, A>(
-  baseAtom: WritableAtom<S, NonFunction<S>>,
+export function focusAtom<S, A, R extends void | Promise<void>>(
+  baseAtom: WritableAtom<Promise<S>, NonFunction<S>, R>,
   callback: (optic: O.OpticFor<S>) => O.Traversal<S, any, A>
-): WritableAtom<A[], SetStateAction<A>>
+): WritableAtom<A[], SetStateAction<A>, R>
 
-export function focusAtom<S, A>(
-  baseAtom: WritableAtom<S, NonFunction<S>>,
+export function focusAtom<S, A, R extends void | Promise<void>>(
+  baseAtom: WritableAtom<Promise<S>, NonFunction<S>, R>,
   callback: (
     optic: O.OpticFor<S>
   ) => O.Lens<S, any, A> | O.Equivalence<S, any, A> | O.Iso<S, any, A>
-): WritableAtom<A, SetStateAction<A>>
+): WritableAtom<A, SetStateAction<A>, R>
 
-export function focusAtom<S, A>(
-  baseAtom: WritableAtom<S, NonFunction<S>>,
+export function focusAtom<S, A, R extends void | Promise<void>>(
+  baseAtom: WritableAtom<S, NonFunction<S>, R>,
+  callback: (optic: O.OpticFor<S>) => O.Prism<S, any, A>
+): WritableAtom<A | undefined, SetStateAction<A>, R>
+
+export function focusAtom<S, A, R extends void | Promise<void>>(
+  baseAtom: WritableAtom<S, NonFunction<S>, R>,
+  callback: (optic: O.OpticFor<S>) => O.Traversal<S, any, A>
+): WritableAtom<A[], SetStateAction<A>, R>
+
+export function focusAtom<S, A, R extends void | Promise<void>>(
+  baseAtom: WritableAtom<S, NonFunction<S>, R>,
+  callback: (
+    optic: O.OpticFor<S>
+  ) => O.Lens<S, any, A> | O.Equivalence<S, any, A> | O.Iso<S, any, A>
+): WritableAtom<A, SetStateAction<A>, R>
+
+export function focusAtom<S, A, R extends void | Promise<void>>(
+  baseAtom: WritableAtom<S, NonFunction<S>, R>,
   callback: (
     optic: O.OpticFor<S>
   ) =>
@@ -45,7 +62,7 @@ export function focusAtom<S, A>(
         const newValueProducer = isFunction(update)
           ? O.modify(focus)(update)
           : O.set(focus)(update)
-        set(baseAtom, newValueProducer(get(baseAtom)) as NonFunction<S>)
+        return set(baseAtom, newValueProducer(get(baseAtom)) as NonFunction<S>)
       }
     )
     return derivedAtom
