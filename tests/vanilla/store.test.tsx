@@ -1,6 +1,11 @@
 import { waitFor } from '@testing-library/react'
 import { assert, describe, expect, it, vi } from 'vitest'
-import { atom, createStore } from 'jotai/vanilla'
+import {
+  atom,
+  INTERNAL_buildStore as buildStore,
+  createStore,
+  INTERNAL_getSecretStoreMethods as getSecretStoreMethods,
+} from 'jotai/vanilla'
 import type { Atom, Getter, PrimitiveAtom } from 'jotai/vanilla'
 
 it('should not fire on subscribe', async () => {
@@ -1025,6 +1030,18 @@ it('should call onInit only once per atom', () => {
   expect(onInit).not.toHaveBeenCalled()
 })
 
+type EnsureAtomState = ReturnType<typeof getSecretStoreMethods>[0]
+
+const deriveStore = (
+  store: ReturnType<typeof createStore>,
+  enhanceEnsureAtomState: (fn: EnsureAtomState) => EnsureAtomState,
+) => {
+  const [ensureAtomState] = getSecretStoreMethods(store)
+  const newEnsureAtomState = enhanceEnsureAtomState(ensureAtomState)
+  const derivedStore = buildStore(newEnsureAtomState)
+  return derivedStore
+}
+
 it('should call onInit only once per store', () => {
   const a = atom(0)
   const aOnInit = vi.fn()
@@ -1044,37 +1061,19 @@ it('should call onInit only once per store', () => {
   }
   testInStore(createStore())
   const store = testInStore(createStore())
-  testInStore(
-    store.unstable_derive(
-      (
-        getAtomState,
-        setAtomState,
-        atomRead,
-        atomWrite,
-        atomOnInit,
-        atomOnMount,
-      ) => {
-        const initializedAtoms = new WeakSet()
-        return [
-          (a) => {
-            if (!initializedAtoms.has(a)) {
-              return undefined
-            }
-            return getAtomState(a)
-          },
-          (a, s) => {
-            initializedAtoms.add(a)
-            setAtomState(a, s)
-            return s
-          },
-          atomRead,
-          atomWrite,
-          atomOnInit,
-          atomOnMount,
-        ]
-      },
-    ) as Store,
-  )
+  const derivedStore = deriveStore(store, (ensureAtomState) => {
+    const initializedAtoms = new WeakSet()
+    return (atom) => {
+      if (!initializedAtoms.has(atom)) {
+        initializedAtoms.add(atom)
+        const atomState = ensureAtomState(atom, () => {})
+        atom.unstable_onInit?.(derivedStore)
+        return atomState
+      }
+      return ensureAtomState(atom)
+    }
+  })
+  testInStore(derivedStore)
 })
 
 it('should pass store and atomState to the atom initializer', () => {

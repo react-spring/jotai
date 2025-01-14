@@ -1,10 +1,13 @@
 import { expect, it, vi } from 'vitest'
 import type { Atom, Getter, Setter } from 'jotai/vanilla'
-import { atom, createStore } from 'jotai/vanilla'
+import {
+  atom,
+  createStore,
+  INTERNAL_getSecretStoreMethods as getSecretStoreMethods,
+} from 'jotai/vanilla'
 
 type Store = ReturnType<typeof createStore>
-type GetAtomState = Parameters<Parameters<Store['unstable_derive']>[0]>[0]
-type AtomState = NonNullable<ReturnType<GetAtomState>>
+type AtomState = ReturnType<ReturnType<typeof getSecretStoreMethods>[0]>
 type AnyAtom = Atom<unknown>
 type Batch = Parameters<NonNullable<AtomState['u']>>[0]
 
@@ -115,28 +118,9 @@ function ensureBatchChannel(batch: BatchWithSyncEffect) {
   return batch[syncEffectChannelSymbol]!
 }
 
-const getAtomStateMap = new WeakMap<Store, GetAtomState>()
-
-/**
- * HACK: steal atomState to synchronously determine if
- * the atom is mounted
- * We return null to cause the buildStore(...args) to throw
- * to abort creating a derived store
- */
 function getAtomState(store: Store, atom: AnyAtom): AtomState {
-  let getAtomStateFn = getAtomStateMap.get(store)
-  if (!getAtomStateFn) {
-    try {
-      store.unstable_derive((...storeArgs) => {
-        getAtomStateFn = storeArgs[0]
-        return null as any
-      })
-    } catch {
-      // expect error
-    }
-    getAtomStateMap.set(store, getAtomStateFn!)
-  }
-  return getAtomStateFn!(atom)!
+  const [ensureAtomState] = getSecretStoreMethods(store)
+  return ensureAtomState(atom)!
 }
 
 it('fires after recomputeDependents and before atom listeners', async function test() {

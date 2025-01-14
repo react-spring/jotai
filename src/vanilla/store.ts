@@ -190,7 +190,7 @@ const addBatchFunc = (
   batch: Batch,
   priority: BatchPriority,
   fn: () => void,
-) => {
+): void => {
   batch[priority].add(fn)
 }
 
@@ -209,7 +209,7 @@ const registerBatchAtom = (
   }
 }
 
-const flushBatch = (batch: Batch) => {
+const flushBatch = (batch: Batch): void => {
   let error: AnyError
   let hasError = false
   const call = (fn: () => void) => {
@@ -234,25 +234,6 @@ const flushBatch = (batch: Batch) => {
   }
 }
 
-// internal & unstable type
-type StoreArgs = readonly [
-  getAtomState: <Value>(atom: Atom<Value>) => AtomState<Value> | undefined,
-  setAtomState: <Value>(atom: Atom<Value>, atomState: AtomState<Value>) => void,
-  atomRead: <Value>(
-    atom: Atom<Value>,
-    ...params: Parameters<Atom<Value>['read']>
-  ) => Value,
-  atomWrite: <Value, Args extends unknown[], Result>(
-    atom: WritableAtom<Value, Args, Result>,
-    ...params: Parameters<WritableAtom<Value, Args, Result>['write']>
-  ) => Result,
-  atomOnInit: <Value>(atom: Atom<Value>, store: Store) => void,
-  atomOnMount: <Value, Args extends unknown[], Result>(
-    atom: WritableAtom<Value, Args, Result>,
-    setAtom: (...args: Args) => Result,
-  ) => OnUnmount | void,
-]
-
 // for debugging purpose only
 type DevStoreRev4 = {
   dev4_get_internal_weak_map: () => {
@@ -262,6 +243,34 @@ type DevStoreRev4 = {
   dev4_restore_atoms: (values: Iterable<readonly [AnyAtom, AnyValue]>) => void
 }
 
+const INTERNAL_STORE_METHODS: unique symbol = Symbol() // no description intentionally
+
+const getSecretStoreMethods = (store: Store): SecretStoreMethods =>
+  store[INTERNAL_STORE_METHODS]
+
+type SecretStoreMethods = readonly [
+  ensureAtomState: Parameters<BuildStore>[0],
+  readAtomState: <Value>(
+    batch: Batch | undefined,
+    atom: Atom<Value>,
+  ) => AtomState<Value>,
+  writeAtomState: <Value, Args extends unknown[], Result>(
+    batch: Batch,
+    atom: WritableAtom<Value, Args, Result>,
+    ...args: Args
+  ) => Result,
+  mountAtom: <Value>(
+    batch: Batch,
+    atom: Atom<Value>,
+    atomState: AtomState<Value>,
+  ) => Mounted,
+  unmountAtom: <Value>(
+    batch: Batch,
+    atom: Atom<Value>,
+    atomState: AtomState<Value>,
+  ) => Mounted | undefined,
+]
+
 type Store = {
   get: <Value>(atom: Atom<Value>) => Value
   set: <Value, Args extends unknown[], Result>(
@@ -269,34 +278,34 @@ type Store = {
     ...args: Args
   ) => Result
   sub: (atom: AnyAtom, listener: () => void) => () => void
-  unstable_derive: (fn: (...args: StoreArgs) => StoreArgs) => Store
+  [INTERNAL_STORE_METHODS]: SecretStoreMethods
 }
 
-export type INTERNAL_DevStoreRev4 = DevStoreRev4
-export type INTERNAL_PrdStore = Store
+type BuildStore = (
+  ensureAtomState: <Value>(
+    atom: Atom<Value>,
+    onInit?: (store: Store) => void,
+  ) => AtomState<Value>,
+  atomRead?: <Value>(
+    atom: Atom<Value>,
+    ...params: Parameters<Atom<Value>['read']>
+  ) => Value,
+  atomWrite?: <Value, Args extends unknown[], Result>(
+    atom: WritableAtom<Value, Args, Result>,
+    ...params: Parameters<WritableAtom<Value, Args, Result>['write']>
+  ) => Result,
+  atomOnMount?: <Value, Args extends unknown[], Result>(
+    atom: WritableAtom<Value, Args, Result>,
+    setAtom: (...args: Args) => Result,
+  ) => OnUnmount | void,
+) => Store
 
-const buildStore = (...storeArgs: StoreArgs): Store => {
-  const [
-    getAtomState,
-    setAtomState,
-    atomRead,
-    atomWrite,
-    atomOnInit,
-    atomOnMount,
-  ] = storeArgs
-  const ensureAtomState = <Value>(atom: Atom<Value>) => {
-    if (import.meta.env?.MODE !== 'production' && !atom) {
-      throw new Error('Atom is undefined or null')
-    }
-    let atomState = getAtomState(atom)
-    if (!atomState) {
-      atomState = { d: new Map(), p: new Set(), n: 0 }
-      setAtomState(atom, atomState)
-      atomOnInit?.(atom, store)
-    }
-    return atomState
-  }
-
+const buildStore: BuildStore = (
+  ensureAtomState,
+  atomRead = (atom, ...params) => atom.read(...params),
+  atomWrite = (atom, ...params) => atom.write(...params),
+  atomOnMount = (atom, setAtom) => atom.onMount?.(setAtom),
+): Store => {
   const setAtomStateValueOrPromise = (
     atom: AnyAtom,
     atomState: AtomState,
@@ -708,52 +717,59 @@ const buildStore = (...storeArgs: StoreArgs): Store => {
     }
   }
 
-  const unstable_derive: Store['unstable_derive'] = (fn) =>
-    buildStore(...fn(...storeArgs))
-
   const store: Store = {
     get: readAtom,
     set: writeAtom,
     sub: subscribeAtom,
-    unstable_derive,
+    [INTERNAL_STORE_METHODS]: [
+      ensureAtomState,
+      readAtomState,
+      writeAtomState,
+      mountAtom,
+      unmountAtom,
+    ],
   }
   return store
 }
 
 const deriveDevStoreRev4 = (store: Store): Store & DevStoreRev4 => {
   const debugMountedAtoms = new Set<AnyAtom>()
-  let savedGetAtomState: StoreArgs[0]
+  const [ensureAtomState] = store[INTERNAL_STORE_METHODS]
   let inRestoreAtom = 0
-  const derivedStore = store.unstable_derive((...storeArgs: [...StoreArgs]) => {
-    const [getAtomState, setAtomState, , atomWrite] = storeArgs
-    savedGetAtomState = getAtomState
-    storeArgs[1] = function devSetAtomState(atom, atomState) {
-      setAtomState(atom, atomState)
-      const originalMounted = atomState.h
-      atomState.h = (batch) => {
-        originalMounted?.(batch)
-        if (atomState.m) {
-          debugMountedAtoms.add(atom)
-        } else {
-          debugMountedAtoms.delete(atom)
-        }
+  const newEnsureAtomState: typeof ensureAtomState = (atom) => {
+    const atomState = ensureAtomState(atom, () => {
+      atom.unstable_onInit?.(derivedStore)
+    })
+    const originalMounted = atomState.h
+    atomState.h = (batch) => {
+      originalMounted?.(batch)
+      if (atomState.m) {
+        debugMountedAtoms.add(atom)
+      } else {
+        debugMountedAtoms.delete(atom)
       }
     }
-    storeArgs[3] = function devAtomWrite(atom, getter, setter, ...args) {
-      if (inRestoreAtom) {
-        return setter(atom, ...args)
-      }
-      return atomWrite(atom, getter, setter, ...args)
+    return atomState
+  }
+  const atomWrite: Parameters<BuildStore>[2] = (
+    atom,
+    getter,
+    setter,
+    ...args
+  ) => {
+    if (inRestoreAtom) {
+      return setter(atom, ...args)
     }
-    return storeArgs
-  })
+    return atom.write(getter, setter, ...args)
+  }
+  const derivedStore = buildStore(newEnsureAtomState, undefined, atomWrite)
   const savedStoreSet = derivedStore.set
   const devStore: DevStoreRev4 = {
     // store dev methods (these are tentative and subject to change without notice)
     dev4_get_internal_weak_map: () => ({
       get: (atom) => {
-        const atomState = savedGetAtomState(atom)
-        if (!atomState || atomState.n === 0) {
+        const atomState = ensureAtomState(atom)
+        if (atomState.n === 0) {
           // for backward compatibility
           return undefined
         }
@@ -787,14 +803,22 @@ type PrdOrDevStore = Store | (Store & DevStoreRev4)
 
 export const createStore = (): PrdOrDevStore => {
   const atomStateMap = new WeakMap()
-  const store = buildStore(
-    (atom) => atomStateMap.get(atom),
-    (atom, atomState) => atomStateMap.set(atom, atomState).get(atom),
-    (atom, ...params) => atom.read(...params),
-    (atom, ...params) => atom.write(...params),
-    (atom, ...params) => atom.unstable_onInit?.(...params),
-    (atom, ...params) => atom.onMount?.(...params),
-  )
+  const ensureAtomState: Parameters<BuildStore>[0] = (
+    atom,
+    onInit = (s) => atom.unstable_onInit?.(s),
+  ) => {
+    if (import.meta.env?.MODE !== 'production' && !atom) {
+      throw new Error('Atom is undefined or null')
+    }
+    let atomState = atomStateMap.get(atom)
+    if (!atomState) {
+      atomState = { d: new Map(), p: new Set(), n: 0 }
+      atomStateMap.set(atom, atomState)
+      onInit(store)
+    }
+    return atomState
+  }
+  const store = buildStore(ensureAtomState)
   if (import.meta.env?.MODE !== 'production') {
     return deriveDevStoreRev4(store)
   }
@@ -817,3 +841,17 @@ export const getDefaultStore = (): PrdOrDevStore => {
   }
   return defaultStore
 }
+
+// Internal functions (subject to change without notice)
+export const INTERNAL_getSecretStoreMethods: typeof getSecretStoreMethods =
+  getSecretStoreMethods
+export const INTERNAL_buildStore: typeof buildStore = buildStore
+export const INTERNAL_createBatch: typeof createBatch = createBatch
+export const INTERNAL_addBatchFunc: typeof addBatchFunc = addBatchFunc
+export const INTERNAL_flushBatch: typeof flushBatch = flushBatch
+
+// Internal types (subject to change without notice)
+export type INTERNAL_AtomState = AtomState
+export type INTERNAL_DevStoreRev4 = DevStoreRev4
+export type INTERNAL_PrdStore = Store
+export type INTERNAL_SecretStoreMethods = SecretStoreMethods
