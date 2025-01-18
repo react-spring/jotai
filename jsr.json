@@ -1,0 +1,13 @@
+{
+  "name": "@jotai/jotai",
+  "version": "2.7.0-jsr.0",
+  "exports": {
+    ".": "./src/index.ts",
+    "./vanilla": "./src/vanilla.ts",
+    "./vanilla/utils": "./src/vanilla/utils.ts",
+    "./react": "./src/react.ts",
+    "./react/utils": "./src/react/utils.ts"
+  },
+  "include": ["src/**"],
+  "exclude": ["website/**"]
+}
