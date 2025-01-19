@@ -745,3 +745,51 @@ describe('with subscribe method in string storage', () => {
     // expect(storageData.count).toBe('11')
   })
 })
+
+describe('with custom async storage', () => {
+  it('does not infinite loop (#2931)', async () => {
+    let storedValue = 0
+    let cachedPromise:
+      | [typeof storedValue, Promise<typeof storedValue>]
+      | null = null
+    const counterAtom = atomWithStorage('counter', 0, {
+      getItem(_key: string, _initialValue: number) {
+        if (cachedPromise && cachedPromise[0] === storedValue) {
+          return cachedPromise[1]
+        }
+        const promise = Promise.resolve(storedValue)
+        cachedPromise = [storedValue, promise]
+        return promise
+      },
+      async setItem(_key, newValue) {
+        storedValue = await new Promise((resolve) => resolve(newValue))
+      },
+      async removeItem() {},
+    })
+    const Component = () => {
+      const [count, setCount] = useAtom(counterAtom)
+      return (
+        <>
+          <div>count: {count}</div>
+          <button onClick={() => setCount(async (c) => (await c) + 1)}>
+            button
+          </button>
+        </>
+      )
+    }
+    await act(async () => {
+      render(
+        <StrictMode>
+          <Suspense fallback="loading">
+            <Component />
+          </Suspense>
+        </StrictMode>,
+      )
+    })
+    await screen.findByText('count: 0')
+    await userEvent.click(screen.getByText('button'))
+    await screen.findByText('count: 1')
+    await userEvent.click(screen.getByText('button'))
+    await screen.findByText('count: 2')
+  })
+})
