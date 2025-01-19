@@ -132,4 +132,22 @@ describe('memory leaks (with dependencies)', () => {
     objAtom = undefined
     expect(await detector.isLeaking()).toBe(false)
   })
+
+  it('infinite async dependency', async () => {
+    const store = createStore()
+    let objAtom: Atom<object> | undefined = atom({})
+    const detector = new LeakDetector(store.get(objAtom))
+    const atom1 = atom(0)
+    const atom2 = atom(async (get) => {
+      if (get(atom1)) {
+        return new Promise(() => {})
+      }
+      return objAtom && get(objAtom)
+    })
+    store.sub(atom2, () => {})
+    store.set(atom1, 1)
+    objAtom = undefined
+    await Promise.resolve()
+    expect(await detector.isLeaking()).toBe(false)
+  })
 })

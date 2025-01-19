@@ -94,7 +94,7 @@ it('correctly handles the same promise being returned twice from an atom getter 
   await expect(store.get(derivedAtom)).resolves.toBe('Asynchronous Data')
 })
 
-it('keeps atoms mounted between recalculations', async () => {
+it('keeps sync atoms mounted between recalculations', async () => {
   const metrics1 = {
     mounted: 0,
     unmounted: 0,
@@ -148,9 +148,11 @@ it('keeps atoms mounted between recalculations', async () => {
     mounted: 1,
     unmounted: 0,
   })
+  await Promise.resolve()
+  // async atom has been re-mounted
   expect(metrics2).toEqual({
-    mounted: 1,
-    unmounted: 0,
+    mounted: 2,
+    unmounted: 1,
   })
 })
 
@@ -424,4 +426,97 @@ it('batches sync writes', () => {
   expect(fetch).toHaveBeenCalledOnce()
   expect(fetch).toBeCalledWith(1)
   expect(store.get(a)).toBe(1)
+})
+
+it('mounts and unmounts sync and async dependencies correctly', async () => {
+  const mounted = [0, 0, 0, 0, 0] as [number, number, number, number, number]
+  const a = atom(0)
+  a.debugLabel = 'a'
+  a.onMount = () => {
+    ++mounted[0]
+    return () => {
+      --mounted[0]
+    }
+  }
+
+  const b = atom(0)
+  b.debugLabel = 'b'
+  b.onMount = () => {
+    ++mounted[1]
+    return () => {
+      --mounted[1]
+    }
+  }
+
+  const c = atom(0)
+  c.debugLabel = 'c'
+  c.onMount = () => {
+    ++mounted[2]
+    return () => {
+      --mounted[2]
+    }
+  }
+
+  const d = atom(0)
+  d.debugLabel = 'd'
+  d.onMount = () => {
+    ++mounted[3]
+    return () => {
+      --mounted[3]
+    }
+  }
+
+  const e = atom(0)
+  e.debugLabel = 'e'
+  e.onMount = () => {
+    ++mounted[4]
+    return () => {
+      --mounted[4]
+    }
+  }
+
+  let resolve: (() => Promise<void>) | undefined
+  const f = atom((get) => {
+    if (!get(a)) {
+      get(b)
+    } else {
+      get(c)
+    }
+    const promise = new Promise<void>((r) => {
+      resolve = () => {
+        r()
+        return promise
+      }
+    }).then(() => {
+      if (!get(a)) {
+        get(d)
+      } else {
+        get(e)
+      }
+    })
+    return promise
+  })
+  f.debugLabel = 'f'
+
+  const store = createStore()
+  // mount a, b synchronously
+  const unsub = store.sub(f, () => {})
+  expect(mounted).toEqual([1, 1, 0, 0, 0])
+
+  // mount d asynchronously
+  await resolve!()
+  expect(mounted).toEqual([1, 1, 0, 1, 0])
+
+  // unmount b, mount c synchronously
+  // d is also unmounted
+  store.set(a, 1)
+  expect(mounted).toEqual([1, 0, 1, 0, 0])
+
+  // mount e asynchronously
+  await resolve!()
+  expect(mounted).toEqual([1, 0, 1, 0, 1])
+
+  // unmount a, b, d, e synchronously
+  unsub()
+  expect(mounted).toEqual([0, 0, 0, 0, 0])
 })
