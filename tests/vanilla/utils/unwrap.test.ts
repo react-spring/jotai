@@ -150,3 +150,17 @@ describe('unwrap', () => {
     expect(store.get(syncAtom)).toEqual('concrete')
   })
 })
+
+it('should update dependents with the value of the unwrapped atom when the promise resolves', async () => {
+  const store = createStore()
+  const asyncTarget = atom(() => Promise.resolve('value'))
+  const target = unwrap(asyncTarget)
+  const results: string[] = []
+  const derived = atom(async (get) => {
+    await Promise.resolve()
+    results.push('effect ' + get(target))
+  })
+  store.sub(derived, () => {})
+  await new Promise((r) => setTimeout(r))
+  expect(results).toEqual(['effect undefined', 'effect value'])
+})

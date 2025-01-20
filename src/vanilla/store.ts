@@ -569,11 +569,17 @@ const buildStore = (...storeArgs: StoreArgs): Store => {
 
   const mountDependencies = (atom: AnyAtom, atomState: AtomState) => {
     if (atomState.m && !isPendingPromise(atomState.v)) {
-      for (const a of atomState.d.keys()) {
+      for (const [a, n] of atomState.d) {
         if (!atomState.m.d.has(a)) {
-          const aMounted = mountAtom(a, ensureAtomState(a))
+          const aState = ensureAtomState(a)
+          const aMounted = mountAtom(a, aState)
           aMounted.t.add(atom)
           atomState.m.d.add(a)
+          if (n !== aState.n) {
+            changedAtoms.set(a, aState)
+            aState.u?.()
+            invalidateDependents(aState)
+          }
         }
       }
       for (const a of atomState.m.d || []) {
